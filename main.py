@@ -68,12 +68,25 @@ try:
         # se for um registro de transação
         match = re.search('<T.*,.*,.*,.*>', linha)
         if match:
-            print(match.group(0))
+            # remove <>
+            match = match.group(0).replace('<','').replace('>','')
+            
+            # coleta dados
+            tupla = match.split(',')
+
+            # se a transação não estiver comitada, faz UNDO
+            if tupla[0] not in committed:
+                
+                # busca valor atual no banco
+                cursor.execute(f'SELECT {tupla[2]}  FROM data WHERE id = {tupla[1]}')
+                valor_bd = cursor.fetchone()[0]
+
+                # se o valor no banco for diferente do log, faz update no banco
+                if str(valor_bd) != str(tupla[3]):
+                    cursor.execute(f"UPDATE data SET {tupla[2]}={tupla[3]} WHERE id={tupla[1]}")
 
 
-
-    print('committed =', committed)
-    print('started =', started)
+    # percorre as transações começadas e printa as não comitadas
     for t in started:
         if t not in committed:
             print(f'Transação {t} realizou UNDO')
