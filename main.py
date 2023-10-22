@@ -1,4 +1,5 @@
 import psycopg2
+import json
 
 try:
     # conecta com o banco
@@ -20,11 +21,26 @@ try:
             b integer NOT NULL
         );"""
     )
+
+    # lê arquivo de metadados
+    try:
+        file = open('files/metadados.json')
+        data = json.load(file)['table']
+        file.close()
+    except Exception as e:
+        print(e)
+        exit()
+
     
+    dados = list(zip(data['id'], data['A'], data['B']))
 
-    cursor.close()
+    # insere dados na tabela
+    for dado in dados:
+        cursor.execute(f'INSERT INTO data VALUES ({dado[0]},{dado[1]},{dado[2]})')
 
-# printa erros
+    conn.commit()
+
+
 except (Exception, psycopg2.DatabaseError) as error:
     print(error)
 
