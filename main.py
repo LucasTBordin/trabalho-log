@@ -3,10 +3,13 @@ import json
 import re
 import sys
 
+user_postgres = 'postgres'
+pswd_postgres = 'postgres'
+
 try:
     # conecta com o banco
     conn = psycopg2.connect(
-        host="localhost", database="trab_log", user="postgres", password="postgres"
+        host="localhost", database="trab_log", user=user_postgres, password=pswd_postgres
     )
 
     cursor = conn.cursor()
@@ -47,12 +50,31 @@ try:
     # cria vetores pra armazenar as transações que começaram e as que fizeram commit
     started = []
     committed = []
+    
+    # flag pra quando encontrar checkpoint
+    viu_ckpt = False
+    # vetor pra armazenar as transações do checkpoint (sabemos que só precisamos ir até o start delas)
+    transacoes_ckpt = []
 
-    # percorre log de trás pra frente
+    # percorre log de trás pra frente (mais novo pro mais antigo)
     for linha in reversed(list(log)):
-        # se chegar em um fim de checkpoint, não precisa mais olhar
-        if "END CKPT" in linha:
-            break
+        
+        # se já encontrou o checkpoint
+        if viu_ckpt:
+            # se já viu o start de todas transações do checkpoint, pode parar de olhar
+            if len(transacoes_ckpt) == 0:
+                break
+
+        # se encontrar um começo de checkpoint
+        if "START CKPT" in linha:
+            # ativa a flag que já encontrou o checkpoint mais recente
+            viu_ckpt = True
+            
+            # se existirem transações entre parenteses
+            if "(" in linha:
+                # armazena as transações entre parenteses no vetor transacoes_ckpt
+                transacoes = linha.split('(')[1].replace(")>\n", "").replace(" ", '')
+                transacoes_ckpt = transacoes.split(",")
 
         # se for um commit
         if "commit" in linha:
@@ -63,6 +85,10 @@ try:
         if "start" in linha and "CKPT" not in linha:
             # add id da transação no vetor started
             started.append(linha.split(" ")[1].replace(">\n", ""))
+
+            # se a transação estiver em um start checkpoint, marca ela como vista
+            if tupla[0] in transacoes_ckpt:
+                transacoes_ckpt.remove(tupla[0])
 
         # se for um registro de transação
         match = re.search("<T.*,.*,.*,.*>", linha)
